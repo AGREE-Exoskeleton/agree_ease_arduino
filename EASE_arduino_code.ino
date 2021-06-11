@@ -81,7 +81,7 @@ void setup() {
 
   lcd_display.begin(16, 2);     //Initialise the number of (coloumns, rows) in the LCD
 
-  lcd_display.print("AGREE Exoskeleton");      // Print a message onto the LCD Display
+  lcd_display.print("FES-Joint");      // Print a message onto the LCD Display
 
   ease_1.start_spi();      // Start SPI for EASE
 
@@ -134,11 +134,6 @@ void loop() {
       ease_1.write_reg_value(i, calibration_reference[i]);     //Write register data (register,value, led_on)
   }
   ease_1.write_reg_value(6, calibration_done);
-
-
-
-  
-  
 
 //  Serial.println(analog_value);
 //
