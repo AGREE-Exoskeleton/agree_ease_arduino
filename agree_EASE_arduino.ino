@@ -1,69 +1,42 @@
 /*
-  Liquid Crystal & Esmacat Arduino Library - Printing the Latest Button Pressed
+  Esmacat Arduino Library - Homing manager for the AGREE Exoskeleton.
 
   This sketch does the following:
-  1) Gets the analog value of the button pressed on the LCD Shield and
-     sends it to the EtherCAT master using EASE (EtherCAT Arduino Shield by Esmacat).
-  2) Based on the Input from the master, prints the corresponding message on the LCD.
+  1) Gets the homing references, robot side, and calibration flag from the EtherCAT master if the "data_ready" boolean is activated.
+  2) Stores the values in the memory.
+  3) Sends the homing references, robot side, and calibration flag to the EtherCAT master.
 
-  created 15 Dec 2019
-  by Harmonic Bionics Inc. (https://www.harmonicbionics.com/).
-
-
-*/
-
-
-/*
-    PIN CONFIGURATION
-    |-----------------------------------------|
-    |  LCD PIN Number  |   Arduino PIN Number |
-    |-----------------------------------------|
-    |       RS         |      Digital Pin 8   |
-    |     ENABLE       |      Digital Pin 9   |
-    |       D4         |      Digital Pin 4   |
-    |       D5         |      Digital Pin 5   |
-    |       D6         |      Digital Pin 6   |
-    |       D7         |      Digital Pin 7   |
-    |     Buttons      |      Analog Pin A0   |
-    |-----------------------------------------|
+  created 10 Oct 2021
+  by Stefano Dalla Gasperina for the AGREE Exoskeleton.
 
 */
-
-/*
-  Analog Input Values for the Push Buttons
-  |------------------------------------------------|
-  |    Push Button     |          A0 value         |
-  |------------------------------------------------|
-  |       SELECT       |   val >= 500 & val <= 750 |
-  |        LEFT        |   val >= 300 & val < 500  |
-  |         UP         |   val >= 50  & val < 150  |
-  |        DOWN        |   val >= 150 & val < 300  |
-  |        RIGHT       |   val >= 0   & val < 50   |
-  |------------------------------------------------|
-*/
-
 #include <LiquidCrystal.h>      // Include LCD Arduino Library
 #include <Esmacatshield.h>      //Include the Esmacat Arduino Library
 
 #define ARDUINO_UNO_SLAVE_SELECT 10      // The chip selector pin for Arduino Uno is 10 
+#define CALIBRATION_SIDE_INDEX   5
+#define CALIBRATION_DONE_INDEX   6
+#define CALIBRATION_READY_INDEX  7
 
 LiquidCrystal lcd_display(8, 9, 4, 5, 6, 7);      // Create an object for the Library class
-Esmacatshield ease_1(ARDUINO_UNO_SLAVE_SELECT);      // Create a slave object and specify the Chip Selector Pin
+Esmacatshield agree_ease(ARDUINO_UNO_SLAVE_SELECT);      // Create a slave object and specify the Chip Selector Pin
 
 
-int ease_registers[8];      // EASE 8 registers
+// EASE input registers
+int agree_ease_registers[8];  
 
-int analog_value;      // Initialise analog input value variable
-String data;      // Initialize the data variable
-int button_pressed;      // Encoded value for the buttons
+// Reset counter
 long int counter = 0;
 
-int calibration_reference[5] = {0,0,0,0,0};
-int calibration_done = 0;
-bool data_ready;
+// Initialize homing references
+int agree_homing_references[5] = {0,0,0,0,0};
 
-// AGREE Mode
-int mode;
+// Initialize "calibration_done" flag
+int calibration_done = 0;
+
+// Initialize "data_ready" flag
+bool data_ready = false;
+
 
 /*
     -------------------------------------------
@@ -80,88 +53,60 @@ int mode;
 void setup() {
 
   lcd_display.begin(16, 2);     //Initialise the number of (coloumns, rows) in the LCD
+  lcd_display.print("AGREE-Exoskeleton");      // Print a message onto the LCD Display
 
-  lcd_display.print("FES-Joint");      // Print a message onto the LCD Display
+  // Start SPI for EASE
+  agree_ease.start_spi();      
 
-  ease_1.start_spi();      // Start SPI for EASE
-
-  Serial.begin(9600);      // Initialise the Serial Communication with the specified Baud Rate
+  // Initialise the Serial Communication with the specified Baud Rate
+  Serial.begin(9600);      
 }
 
 void loop() {
 
-  // Code to print the button pressed on the LCD to the Serial Monitor
-  analog_value = analogRead(A0);
+  // Read EASE registers
+  agree_ease.get_ecat_registers(agree_ease_registers);
 
-  ease_1.get_ecat_registers(ease_registers);
+  // Get "data_ready" flag
+  data_ready = agree_ease_registers[CALIBRATION_READY_INDEX];
 
-
-//  Serial.print(ease_registers[1]);
-//  Serial.print(\t);
-//  Serial.println(analog_value);
-
-  data_ready = ease_registers[7];
-  
+  // If data is ready (from the EtherCAT master)
   if(data_ready) 
  {  
-    calibration_done = ease_registers[6];
+    // Get "calibration_done" flag
+    calibration_done = agree_ease_registers[CALIBRATION_DONE_INDEX];
+
+    // Get "homing_references" values from input registers (5 slaves)
     for(int i=0;i<5;i++){
-      calibration_reference[i] = ease_registers[i];  // Receive the encode the value for register
+      agree_homing_references[i] = agree_ease_registers[i];  
   }
  }
+  
+  // Set "homing references" in the output registers
+  for(int i=0;i<5;i++){
+      agree_ease.write_reg_value(i, agree_homing_references[i]);   
+  }
+  
+  agree_ease.write_reg_value(CALIBRATION_DONE_INDEX, calibration_done);
 
+  // Increase counter for print feedback
   counter++;
+  // Print feedback
   if(counter%50==0)
   {
-    Serial.println("INPUT regs >> STORED regs >> Calibrated? ");
+    Serial.println("INPUT regs >> STORED regs >> DONE? reg ");
     for(int i=0;i<5;i++){
-      Serial.print(ease_registers[i]);     //Write register data (register,value, led_on)
+      Serial.print(agree_ease_registers[i]);     
       Serial.print(" ");
     }
     Serial.print(" >> ");
     for(int i=0;i<5;i++){
-    Serial.print(calibration_reference[i]);     //Write register data (register,value, led_on)
+    Serial.print(agree_homing_references[i]);     
     Serial.print(" ");
     }
     Serial.print(" >> ");
     Serial.print(calibration_done);  
     Serial.println();
   }
-
-
-  // Set OUTPUT Values
-  for(int i=0;i<5;i++){
-      ease_1.write_reg_value(i, calibration_reference[i]);     //Write register data (register,value, led_on)
-  }
-  ease_1.write_reg_value(6, calibration_done);
-
-//  Serial.println(analog_value);
-//
-//  for (int i = 0; i < 16; i++)
-//  {
-//    lcd_display.setCursor(i, 0);
-//    lcd_display.print(" ");      // Remove the previous characters (if any)
-//  }
-//
-//  lcd_display.setCursor(0, 0);
-//  lcd_display.print("Mode: ");
-//  lcd_display.print(mode);
-//
-//  if ( analog_value < 750)
-//  {
-//    lcd_display.setCursor(0, 1);
-//    lcd_display.print("Button Pressed");
-//    ease_1.write_reg_value(0, 0);     //Write register data (register,value, led_on)
-//
-//  }
-//  else {
-//    for (int i = 0; i < 16; i++)
-//    {
-//      lcd_display.setCursor(i, 1);
-//      lcd_display.print(" ");      // Remove the previous characters (if any)
-//    }
-//    ease_1.write_reg_value(0, analog_value);     //Write register data (register,value, led_on)
-//
-//  }
 
 }
