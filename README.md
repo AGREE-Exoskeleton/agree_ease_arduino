@@ -1,5 +1,8 @@
 # agree_EASE_ardino
 
+Arduino sketch for saving homing reference values on the Arduino+EASE. 
+5 slaves version.
+
 ## Requirement
 
 - Requires Arduino IDE
