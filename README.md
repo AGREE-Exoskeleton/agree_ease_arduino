@@ -7,10 +7,11 @@ Arduino sketch for saving AGREE homing reference values on the Arduino+EASE, acc
   2) Stores the values in the memory (according to chosen robot_side)
   3) Sends the homing references, robot side, and calibration flag to the EtherCAT master.
 
-## Requirement
+## Requirements
 
-- Requires Arduino IDE
-- Requires the <EsmacatShield.h> arduino library (EASE_ArduinoCode in Library Manager)
+- Arduino + EASE Shield
+- Arduino IDE
+- <EsmacatShield.h> arduino library (EASE_ArduinoCode in Library Manager)
 
 ## Instructions
 
